@@ -17,66 +17,61 @@
    CORE PALETTE
    ========================= */
 
---primary:#F5EEDD;      /* main app canvas */
---secondary:#7AE2CF;    /* highlight layer */
---deep:#077A7D;         /* panels / structure */
---abyss:#06202B;        /* text / max contrast */
+--black:#000000;        /* foundation */
+--violet:#33ea29;       /* primary accent */
+--neon-pink:#0dc2d6;    /* secondary accent */
+--soft-gold:#FAEB92;    /* highlight */
 
 
 /* =========================
    BACKGROUND SYSTEM
    ========================= */
 
---bg-main:var(--primary);        /* entire app */
---bg-panel:var(--deep);         /* sidebar / modals */
---bg-chat:#288579;              /* slightly lifted deep */
---bg-input:#062A33;
+--bg-main:#000000;        /* entire app */
+--bg-panel:#0A0A0A;      /* lifted from black so UI has depth */
+--bg-chat:#121212;       /* readable layer */
+--bg-input:#0F0F0F;
 
---bg-incoming:#0E4447;
---bg-outgoing:var(--abyss);
+--bg-incoming:#181818;
+--bg-outgoing:#cad85e;
 
 
 /* =========================
    TEXT SYSTEM
    ========================= */
 
---text-main:var(--abyss);
---text-muted:#77b4ba;
+--text-main:#FAEB92;      /* gold reads beautifully on black */
+--text-muted:#d4df73;
 
---text-incoming:#DFFCF6;
---text-outgoing:#8ebed3;
+--text-incoming:#EAD9FF;
+--text-outgoing:#FFFFFF;
 
---text-pod-name:var(--secondary);
+--text-pod-name:#08343a;   /* pink = identity marker */
 
 
 /* =========================
    BUTTONS
    ========================= */
 
---btn-primary:var(--deep);
---btn-text:#EFFFFC;
+--btn-primary:#29baea;
+--btn-text:#FFFFFF;
 
 
 /* =========================
    ACCENTS
    ========================= */
 
---accent-notification:var(--secondary);
---color-danger:#FF6B6B;
+--accent-notification:#FF5FCF;
+--color-danger:#FF4D6D;
 
 
 /* =========================
    BORDERS
    ========================= */
 
---border-soft:rgba(6,32,43,.18);
+--border-soft:rgba(255,95,207,.18);
 
 }
-
-
-
-
-
 
 body{
 margin:0;
