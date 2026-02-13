@@ -1,0 +1,161 @@
+
+</head>
+<body>
+  <div id="sidebar">
+    <h2>Pods</h2>
+    <button id="downloadBtn">💾 Download Logs</button>
+    <div id="nodeList"></div>
+  </div>
+  <div id="main">
+    <h3 id="currentNode">Select a node</h3>
+    <div id="chat"><div class="empty">No messages yet</div></div>
+    <div id="sendBox" style="display:none;">
+      <input type="text" id="msg" placeholder="Type your message">
+      <button class="send-btn" onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+  <script>
+    const baseURL = "http://192.168.4.1";
+    let messages = [];
+    let selectedNode = null;
+    let unread = {};
+    async function fetchMessages() {
+      try {
+        const res = await fetch(baseURL + "/messages", {cache: "no-store"});
+        if (!res.ok) return;
+        const msgs = await res.json();
+        msgs.forEach(m => {
+          if (!messages.find(x => x.msgID === m.msgID)) {
+          m.receivedAt = new Date().toLocaleString();
+          messages.push(m);
+          if (m.sender !== "MASTER") {
+            const node = m.sender;
+            if (selectedNode !== node) {
+              unread[node] = (unread[node] || 0) + 1;
+            }
+          }
+        }
+      });
+        updateNodeList();
+        renderChat();
+      } catch (e) {
+        console.error("Fetch error", e);
+      }
+    }
+    function updateNodeList() {
+  const nodeList = document.getElementById("nodeList");
+
+  const uniqueNodes = [...new Set(
+    messages.flatMap(m => [m.sender, m.target])
+      .filter(n => n && n !== "Me" && n !== "MASTER")
+  )];
+
+  nodeList.innerHTML = "";
+
+  uniqueNodes.forEach(node => {
+    const div = document.createElement("div");
+    div.className = (node === selectedNode ? "active" : "");
+    const count = unread[node] || 0;
+    div.className = "node-item " + (node === selectedNode ? "active" : "");
+    div.innerHTML = `
+      <span>${node}</span>
+      ${count > 0 ? `<span class="badge">${count}</span>` : ""}
+    `;
+    div.onclick = () => {
+      selectedNode = node;
+      unread[node] = 0;
+      document.getElementById("currentNode").textContent = "Chat with " + node;
+      document.getElementById("sendBox").style.display = "flex";
+      renderChat();
+      updateNodeList();
+    };
+    nodeList.appendChild(div);
+  });
+}
+
+    function renderChat() {
+      const chatDiv = document.getElementById("chat");
+      chatDiv.innerHTML = "";
+      if (!selectedNode) {
+        chatDiv.innerHTML = '<div class="empty">No messages yet</div>';
+        return;
+      }
+      const nodeMsgs = messages.filter(m =>
+  (m.sender === selectedNode && m.target === "MASTER") ||
+  (m.sender === "MASTER" && m.target === selectedNode)
+);
+
+      if (nodeMsgs.length === 0) {
+        chatDiv.innerHTML = '<div class="empty">No messages yet</div>';
+        return;
+      }
+      nodeMsgs.forEach(m => {
+        const isOutgoing = (m.sender === "MASTER" && m.target === selectedNode);
+        const bubble = document.createElement("div");
+        bubble.className = "msg " + (isOutgoing ? "outgoing" : "incoming");
+        bubble.innerHTML = `
+          ${escapeHtml(m.text)} 
+
+          <span class="meta">${escapeHtml(m.receivedAt)}</span>
+        `;
+        chatDiv.appendChild(bubble);
+      });
+      chatDiv.scrollTop = chatDiv.scrollHeight;
+    }
+    async function sendMessage() {
+      if (!selectedNode) return;
+      const msg = document.getElementById("msg").value.trim();
+      if (!msg) return;
+      const msgID = Date.now().toString();
+      const newMsg = {
+        msgID,
+        sender: "MASTER",
+        target: selectedNode,
+        type: "MSG",
+        text: msg,
+        gps: "",
+        receivedAt: new Date().toLocaleString()
+      };
+      renderChat();
+      try {
+        const url = `${baseURL}/send?target=${encodeURIComponent(selectedNode)}&msg=${encodeURIComponent(msg)}`;
+        await fetch(url);
+        document.getElementById("msg").value = "";
+      } catch (e) {
+        console.error("Send error", e);
+      }
+    }
+    function downloadLogs() {
+      if (messages.length === 0) {
+        alert("No messages to download");
+        return;
+      }
+      const lines = messages.map(m => {
+        const gps = m.gps ? m.gps : "";
+        return `[${m.receivedAt}] ${m.sender} → ${m.target || ""} | ${m.text} | ${gps}`;
+      });
+      const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "chat_logs.txt";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+    document.getElementById("downloadBtn").addEventListener("click", downloadLogs);
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+    fetchMessages();
+    setInterval(fetchMessages, 2000);
+  </script>
+</body>
+</html>
