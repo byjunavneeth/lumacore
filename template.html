@@ -523,15 +523,28 @@ async function sendMessage() {
   const msg = msgInput.value.trim();
   if (!msg) return;
 
+  const newMsg = {
+    msgID: Date.now().toString(),
+    sender: "MASTER",
+    target: selectedNode,
+    text: msg,
+    receivedAt: new Date().toLocaleString()
+  };
+
+  // ✅ Optimistic UI (show instantly)
+  messages.push(newMsg);
+  renderChat();
+
+  msgInput.value = "";
+
   try {
     const url = `${baseURL}/send?target=${encodeURIComponent(selectedNode)}&msg=${encodeURIComponent(msg)}`;
-    msgInput.value = "";   // clear instantly
-    ;
-
+    await fetch(url);
   } catch (e) {
     console.error("Send error", e);
   }
 }
+
 
 function escapeHtml(str) {
   if (!str) return '';
