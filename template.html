@@ -315,10 +315,31 @@ gap:10px;z-index:9999;
 .toast{
 background:var(--bg-panel);
 color:var(--text-main);
-padding:14px 18px;border-radius:8px;
-min-width:260px;
-animation:slide .3s ease;
+padding:14px 18px;
+border-radius:8px;
+min-width:280px;
+box-shadow:0 10px 30px rgba(0,0,0,.25);
+animation:toastIn .35s ease forwards;
+opacity:0;
+transform:translateY(-20px);
 }
+
+/* entrance */
+@keyframes toastIn{
+to{
+opacity:1;
+transform:translateY(0);
+}
+}
+
+/* exit */
+@keyframes toastOut{
+to{
+opacity:0;
+transform:translateY(-20px);
+}
+}
+
 
 @keyframes slide{
 from{opacity:0;transform:translateY(-20px);}
@@ -415,6 +436,28 @@ document.getElementById("menuToggle").onclick = () => {
     document.getElementById("sidebarWrapper").classList.toggle("open");
 };
 
+function showToast(sender, text) {
+
+  const container = document.getElementById("toastContainer");
+
+  const toast = document.createElement("div");
+  toast.className = "toast";
+
+  const snippet = text.length > 40 ? text.substring(0,40) + "..." : text;
+
+  toast.innerHTML = `
+    <strong>${sender}</strong><br>
+    <span style="font-size:13px;opacity:.8">${escapeHtml(snippet)}</span>
+  `;
+
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.animation = "toastOut .3s ease forwards";
+    setTimeout(() => toast.remove(), 300);
+  }, 2000);
+}
+
 
 async function fetchMessages() {
   try {
@@ -424,18 +467,29 @@ async function fetchMessages() {
     const msgs = await res.json();
 
     msgs.forEach(m => {
-      if (!messages.find(x => x.msgID === m.msgID)) {
-        m.receivedAt = new Date().toLocaleString();
-        messages.push(m);
 
-        if (m.sender !== "MASTER") {
-          const node = m.sender;
-          if (selectedNode !== node) {
-            unread[node] = (unread[node] || 0) + 1;
-          }
-        }
+  const alreadyExists = messages.find(x =>
+    x.sender === m.sender &&
+    x.target === m.target &&
+    x.text === m.text
+  );
+
+  if (!alreadyExists) {
+
+    m.receivedAt = new Date().toLocaleString();
+    messages.push(m);
+
+    if (m.sender !== "MASTER") {
+      showToast(m.sender, m.text);   // 🔥 ADD THIS LINE
+      const node = m.sender;
+      if (selectedNode !== node) {
+        unread[node] = (unread[node] || 0) + 1;
       }
-    });
+    }
+  }
+
+});
+
 
     updateNodeList();
     renderChat();
