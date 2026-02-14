@@ -15,7 +15,6 @@
 
 /* =========================
    CORE PALETTE
-   (DO NOT CHANGE STRUCTURE)
    ========================= */
 
 --primary:#EAEFEF;     /* main surfaces */
@@ -289,11 +288,11 @@ border-left:6px solid var(--bg-outgoing);
 flex:1;
 padding:14px;        /* makes inside spacing bigger */
 height:35px;        /* controls actual textbox height */
-border-radius:8px;  /* slightly more modern */
+border-radius:8px;  
 background:var(--bg-input);
 color:var(--text-muted);
 border:1px solid rgba(255,255,255,.06);
-font-size:15px;     /* improves readability */
+font-size:15px;     
 }
 
 
@@ -406,241 +405,177 @@ width:520px;
 
 <script>
 
-/* ===== FAKE DATA ===== */
+const baseURL = "http://192.168.4.1";
 
-const pods = ["Pod Alpha","Pod Beta","Pod Gamma"];
-let selectedPod=null;
-let messages=[];
-let unread={};
+let messages = [];
+let selectedNode = null;
+let unread = {};
 
-const fakeTexts=[
-"Signal strong.",
-"Battery stable.",
-"Movement detected.",
-"Entering low power mode.",
-"Packet received.",
-"Scanning sector..."
-];
-
-/* ===== SIDEBAR ===== */
-
-menuToggle.onclick=()=>{
-sidebarWrapper.classList.toggle("open");
+document.getElementById("menuToggle").onclick = () => {
+    document.getElementById("sidebarWrapper").classList.toggle("open");
 };
 
-function renderPods(){
 
-nodeList.innerHTML="";
+async function fetchMessages() {
+  try {
+    const res = await fetch(baseURL + "/messages", {cache: "no-store"});
+    if (!res.ok) return;
 
-["ALL PODS",...pods].forEach(p=>{
+    const msgs = await res.json();
 
-const div=document.createElement("div");
-div.className="podItem"+(selectedPod===p?" active":"");
-div.textContent=p;
+    msgs.forEach(m => {
+      if (!messages.find(x => x.msgID === m.msgID)) {
+        m.receivedAt = new Date().toLocaleString();
+        messages.push(m);
 
-if(unread[p]){
-const dot=document.createElement("div");
-dot.className="unreadDot";
-div.appendChild(dot);
+        if (m.sender !== "MASTER") {
+          const node = m.sender;
+          if (selectedNode !== node) {
+            unread[node] = (unread[node] || 0) + 1;
+          }
+        }
+      }
+    });
+
+    updateNodeList();
+    renderChat();
+
+  } catch (e) {
+    console.error("Fetch error", e);
+  }
 }
 
-div.onclick=()=>{
-selectedPod=p==="ALL PODS"?null:p;
-unread[p]=0;
-sendBox.style.display="flex";
-currentNode.textContent=p;
-renderPods();
-renderChat();
-};
+function updateNodeList() {
+  const nodeList = document.getElementById("nodeList");
 
-nodeList.appendChild(div);
+  const uniqueNodes = [...new Set(
+    messages.flatMap(m => [m.sender, m.target])
+      .filter(n => n && n !== "Me" && n !== "MASTER")
+  )];
+
+  nodeList.innerHTML = "";
+
+  uniqueNodes.forEach(node => {
+    const div = document.createElement("div");
+    div.className = "podItem " + (node === selectedNode ? "active" : "");
+
+    const count = unread[node] || 0;
+
+    div.innerHTML = `
+      <span>${node}</span>
+      ${count > 0 ? `<span class="badge">${count}</span>` : ""}
+    `;
+
+    div.onclick = () => {
+      selectedNode = node;
+      unread[node] = 0;
+      document.getElementById("currentNode").textContent = "Chat with " + node;
+      document.getElementById("sendBox").style.display = "flex";
+      renderChat();
+      updateNodeList();
+    };
+
+    nodeList.appendChild(div);
+  });
+}
+
+function renderChat() {
+  const chatDiv = document.getElementById("chat");
+  chatDiv.innerHTML = "";
+
+  if (!selectedNode) {
+    chatDiv.innerHTML = '<div class="empty">No messages yet</div>';
+    return;
+  }
+
+  const nodeMsgs = messages.filter(m =>
+    (m.sender === selectedNode && m.target === "MASTER") ||
+    (m.sender === "MASTER" && m.target === selectedNode)
+  );
+
+  if (nodeMsgs.length === 0) {
+    chatDiv.innerHTML = '<div class="empty">No messages yet</div>';
+    return;
+  }
+
+  nodeMsgs.forEach(m => {
+    const isOutgoing = (m.sender === "MASTER" && m.target === selectedNode);
+
+    const bubble = document.createElement("div");
+      bubble.className = "msg " + (isOutgoing ? "outgoing" : "incoming");
+
+    bubble.innerHTML = `
+      <strong>${isOutgoing ? "Me" : m.sender}</strong><br>
+      ${escapeHtml(m.text)}
+      <div class="meta">${escapeHtml(m.receivedAt)}</div>
+    `;
+
+    chatDiv.appendChild(bubble);
+  });
+
+  chatDiv.scrollTop = chatDiv.scrollHeight;
+}
+
+async function sendMessage() {
+  if (!selectedNode) return;
+
+  const msgInput = document.getElementById("msg");
+  const msg = msgInput.value.trim();
+  if (!msg) return;
+
+  try {
+    const url = `${baseURL}/send?target=${encodeURIComponent(selectedNode)}&msg=${encodeURIComponent(msg)}`;
+    msgInput.value = "";   // clear instantly
+    ;
+
+  } catch (e) {
+    console.error("Send error", e);
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+document.getElementById("downloadBtn").addEventListener("click", function() {
+  if (messages.length === 0) {
+    alert("No messages to download");
+    return;
+  }
+
+  const lines = messages.map(m =>
+    `[${m.receivedAt}] ${m.sender} → ${m.target || ""} | ${m.text}`
+  );
+
+  const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "chat_logs.txt";
+  a.click();
+  URL.revokeObjectURL(url);
 });
+document.getElementById("msg").addEventListener("keydown", function(e) {
 
-}
-
-/* ===== CHAT ===== */
-
-function renderChat(){
-
-chat.innerHTML="";
-
-const data=selectedPod
-?messages.filter(m=>m.pod===selectedPod || m.from==="Me")
-:messages;
-
-if(!data.length){
-chat.innerHTML='<div class="empty">No messages yet</div>';
-return;
-}
-
-data.forEach(m=>{
-
-const div=document.createElement("div");
-div.className="msg "+(m.from==="Me"?"outgoing":"incoming");
-
-let label = m.from;
-
-// ⭐ If message is from Me AND we are viewing ALL PODS
-if(m.from === "Me" && selectedPod === null){
-    label = m.pod === "ALL" 
-        ? "Me → ALL"
-        : `Me → ${m.pod}`;
-}
-
-
-div.innerHTML=`<strong>${label}</strong><br>${m.text}<div class="meta">${m.time}</div>`;
-
-chat.appendChild(div);
-
-});
-
-chat.scrollTop=chat.scrollHeight;
-}
-
-/* ===== SEND ===== */
-
-function sendMessage(){
-
-if(!msg.value.trim()) return;
-
-messages.push({
-from:"Me",
-pod: selectedPod === null ? "ALL" : selectedPod,
-text: msg.value,
-time: new Date().toLocaleTimeString()
-});
-
-
-msg.value="";
-msg.focus();
-renderChat();
-}
-
-/* ===== SIMULATE INCOMING ===== */
-
-function simulateIncoming(){
-
-const pod=pods[Math.floor(Math.random()*pods.length)];
-
-messages.push({
-from:pod,
-pod:pod,
-text:fakeTexts[Math.floor(Math.random()*fakeTexts.length)],
-time:new Date().toLocaleTimeString()
-});
-
-unread[pod]=(unread[pod]||0)+1;
-
-showToast(pod);
-addNotification(pod);
-
-renderPods();
-renderChat();
-}
-
-/* ===== TOAST ===== */
-
-function showToast(pod){
-
-const t=document.createElement("div");
-t.className="toast";
-t.innerHTML=`<strong>${pod}</strong> New message`;
-toastContainer.appendChild(t);
-
-setTimeout(()=>t.remove(),3000);
-}
-
-/* ===== NOTIFICATIONS ===== */
-
-notifBtn.onclick=()=>{
-notifPanel.style.display=
-notifPanel.style.display==="flex"?"none":"flex";
-};
-
-function addNotification(pod){
-
-const item=document.createElement("div");
-item.className="notifItem";
-item.innerHTML=`<strong>${pod}</strong> New message`;
-
-item.onclick=()=>{
-selectedPod=pod;
-notifPanel.style.display="none";
-renderPods();
-renderChat();
-};
-
-notifPanel.prepend(item);
-}
-
-/* ===== STATUS ===== */
-
-statusBtn.onclick=()=>{
-statusModal.style.display="flex";
-renderStatus();
-};
-
-function closeStatus(){
-statusModal.style.display="none";
-}
-
-function renderStatus(){
-
-statusTable.innerHTML="";
-
-pods.forEach(p=>{
-
-const tr=document.createElement("tr");
-
-tr.innerHTML=`
-<td>${p}</td>
-<td>${Math.floor(Math.random()*100)}%</td>
-<td>${Math.random()>.2?"ACTIVE":"INACTIVE"}</td>
-`;
-
-statusTable.appendChild(tr);
-
-});
-
-}
-
-/* ===== DOWNLOAD ===== */
-
-downloadBtn.onclick=()=>{
-
-if(!messages.length){
-alert("No logs yet");
-return;
-}
-
-const blob=new Blob(
-[messages.map(m=>`${m.time} ${m.from}: ${m.text}`).join("\n")],
-{type:"text/plain"}
-);
-
-const a=document.createElement("a");
-a.href=URL.createObjectURL(blob);
-a.download="chat_logs.txt";
-a.click();
-};
-
-/* ===== START ===== */
-
-renderPods();
-
-document.getElementById("msg").addEventListener("keydown", function(e){
-
-    if(e.key === "Enter"){
-        e.preventDefault();
-        sendMessage();
+    if (e.key === "Enter") {
+        e.preventDefault();   // stops newline
+        sendMessage();        // send the message
+        this.value = "";      // clear textbox instantly
     }
 
 });
 
-setInterval(simulateIncoming,4000);
-
+fetchMessages();
+setInterval(fetchMessages, 2000);
 
 </script>
+
 
 </body>
 </html>
